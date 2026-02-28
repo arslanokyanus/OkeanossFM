@@ -24,7 +24,6 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.net.URL
@@ -37,33 +36,20 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
     var errorMessage by mutableStateOf<String?>(null)
     var searchQuery by mutableStateOf("")
     var favoriteIds by mutableStateOf<Set<String>>(emptySet())
+    
+    // CANLI ŞARKI BİLGİLERİ
     var songMetadata by mutableStateOf<Map<String, String>>(emptyMap())
 
-    // GIF Desteği için ImageLoader
     val imageLoader = ImageLoader.Builder(application)
         .components {
-            if (Build.VERSION.SDK_INT >= 28) {
-                add(ImageDecoderDecoder.Factory())
-            } else {
-                add(GifDecoder.Factory())
-            }
+            if (Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory())
+            else add(GifDecoder.Factory())
         }
         .build()
 
-    private val db by lazy {
-        Room.databaseBuilder(application, SomaDatabase::class.java, "soma_db")
-            .fallbackToDestructiveMigration()
-            .build()
-    }
+    private val db by lazy { Room.databaseBuilder(application, SomaDatabase::class.java, "soma_db").fallbackToDestructiveMigration().build() }
     private val favoriteDao by lazy { db.favoriteDao() }
-
-    private val apiService by lazy {
-        Retrofit.Builder()
-            .baseUrl(SomaFMService.BASE_URL)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(SomaFMService::class.java)
-    }
+    private val apiService by lazy { Retrofit.Builder().baseUrl(SomaFMService.BASE_URL).addConverterFactory(GsonConverterFactory.create()).build().create(SomaFMService::class.java) }
 
     init {
         loadFavorites()
@@ -72,11 +58,9 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun loadFavorites() {
         viewModelScope.launch {
-            favoriteDao.getAllFavorites()
-                .catch { e -> errorMessage = "Veritabanı Hatası" }
-                .collect { favorites ->
-                    favoriteIds = favorites.map { it.id }.toSet()
-                }
+            favoriteDao.getAllFavorites().catch {}.collect { favorites ->
+                favoriteIds = favorites.map { it.id }.toSet()
+            }
         }
     }
 
@@ -86,12 +70,19 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
                 try {
                     val rawMeta = apiService.getSongs()
                     val processed = mutableMapOf<String, String>()
-                    rawMeta.forEach { (key, value) ->
-                        val cleanKey = key.lowercase().trim()
-                        processed[cleanKey] = value
-                        // DERİN EŞLEŞME (DeepSpaceOne, Defcon vb. için)
-                        if (cleanKey.contains("deepspace")) processed["deepspaceone"] = value
-                        if (cleanKey.contains("defcon")) processed["defcon"] = value
+                    
+                    // Sadece tam eşleşme değil, akıllı eşleşme yapıyoruz
+                    channels.forEach { channel ->
+                        val channelId = channel.id.lowercase().trim()
+                        // songs.json içindeki anahtarlardan herhangi biri kanal ID'sini içeriyor mu?
+                        val songInfo = rawMeta.entries.find { 
+                            val key = it.key.lowercase().trim()
+                            key == channelId || key.contains(channelId) || channelId.contains(key)
+                        }?.value
+                        
+                        if (songInfo != null) {
+                            processed[channelId] = songInfo
+                        }
                     }
                     songMetadata = processed
                 } catch (e: Exception) {}
@@ -106,9 +97,7 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 val response = apiService.getChannels()
                 channels = response.channels.map { channel ->
-                    val cleanUrl = channel.imageUrl
-                        .replace("api.somafm.com", "somafm.com")
-                        .replace("http://", "https://")
+                    val cleanUrl = channel.imageUrl.replace("http://", "https://")
                     channel.copy(id = channel.id.lowercase().trim(), imageUrl = cleanUrl)
                 }
                 updateSearch(searchQuery)
@@ -122,22 +111,16 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
 
     fun updateSearch(query: String) {
         searchQuery = query
-        filteredChannels = if (query.isEmpty()) channels else channels.filter {
-            it.title.contains(query, ignoreCase = true) || it.description.contains(query, ignoreCase = true)
-        }
+        filteredChannels = if (query.isEmpty()) channels else channels.filter { it.title.contains(query, ignoreCase = true) || it.description.contains(query, ignoreCase = true) }
     }
 
     fun toggleFavorite(channel: SomaChannel) {
         viewModelScope.launch(Dispatchers.IO) {
-            if (favoriteIds.contains(channel.id)) {
-                favoriteDao.deleteFavorite(FavoriteChannel(channel.id, channel.title, channel.description, channel.imageUrl))
-            } else {
-                favoriteDao.insertFavorite(FavoriteChannel(channel.id, channel.title, channel.description, channel.imageUrl))
-            }
+            if (favoriteIds.contains(channel.id)) favoriteDao.deleteFavorite(FavoriteChannel(channel.id, channel.title, channel.description, channel.imageUrl))
+            else favoriteDao.insertFavorite(FavoriteChannel(channel.id, channel.title, channel.description, channel.imageUrl))
         }
     }
 
-    // --- GITHUB OTONOM GÜNCELLEME MANTIĞI ---
     var updateStatus by mutableStateOf("Güncel")
     var updateUrl by mutableStateOf<String?>(null)
 
@@ -145,24 +128,14 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) {
             updateStatus = "Denetleniyor..."
             try {
-                val jsonUrl = "https://raw.githubusercontent.com/arslanokyanus/OkeanossFM/master/version.json"
-                val content = URL(jsonUrl).readText()
+                val content = URL("https://raw.githubusercontent.com/arslanokyanus/OkeanossFM/master/version.json").readText()
                 val json = Json.parseToJsonElement(content).jsonObject
-                
                 val latestCode = json["latestVersionCode"]?.jsonPrimitive?.content?.toInt() ?: 0
-                val latestName = json["latestVersionName"]?.jsonPrimitive?.content ?: ""
-                val downloadUrl = json["updateUrl"]?.jsonPrimitive?.content
-                
-                // Mevcut version code (Şu anlık 1 kabul ediyoruz)
                 if (latestCode > 1) {
-                    updateStatus = "Yeni Sürüm: $latestName"
-                    updateUrl = downloadUrl
-                } else {
-                    updateStatus = "Uygulama Güncel"
-                }
-            } catch (e: Exception) {
-                updateStatus = "Hata oluştu"
-            }
+                    updateStatus = "Yeni Sürüm Mevcut"
+                    updateUrl = json["updateUrl"]?.jsonPrimitive?.content
+                } else { updateStatus = "Uygulama Güncel" }
+            } catch (e: Exception) { updateStatus = "Hata oluştu" }
         }
     }
 }
