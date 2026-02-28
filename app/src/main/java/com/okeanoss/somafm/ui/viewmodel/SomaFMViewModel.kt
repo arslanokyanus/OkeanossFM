@@ -1,12 +1,16 @@
 package com.okeanoss.somafm.ui.viewmodel
 
 import android.app.Application
+import android.os.Build
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.Room
+import coil.ImageLoader
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
 import com.okeanoss.somafm.api.SomaFMService
 import com.okeanoss.somafm.database.FavoriteChannel
 import com.okeanoss.somafm.database.SomaDatabase
@@ -17,9 +21,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import java.net.UnknownHostException
+import java.net.URL
 
 class SomaFMViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -30,6 +38,17 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
     var searchQuery by mutableStateOf("")
     var favoriteIds by mutableStateOf<Set<String>>(emptySet())
     var songMetadata by mutableStateOf<Map<String, String>>(emptyMap())
+
+    // GIF Desteği için ImageLoader
+    val imageLoader = ImageLoader.Builder(application)
+        .components {
+            if (Build.VERSION.SDK_INT >= 28) {
+                add(ImageDecoderDecoder.Factory())
+            } else {
+                add(GifDecoder.Factory())
+            }
+        }
+        .build()
 
     private val db by lazy {
         Room.databaseBuilder(application, SomaDatabase::class.java, "soma_db")
@@ -49,13 +68,12 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
     init {
         loadFavorites()
         startMetadataPolling()
-        // Bildirim planlamasını buraya değil, bir defaya mahsus MainActivity'ye taşıyacağız.
     }
 
     private fun loadFavorites() {
         viewModelScope.launch {
             favoriteDao.getAllFavorites()
-                .catch { e -> errorMessage = "Veritabanı Hatası: ${e.message}" }
+                .catch { e -> errorMessage = "Veritabanı Hatası" }
                 .collect { favorites ->
                     favoriteIds = favorites.map { it.id }.toSet()
                 }
@@ -69,17 +87,15 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
                     val rawMeta = apiService.getSongs()
                     val processed = mutableMapOf<String, String>()
                     rawMeta.forEach { (key, value) ->
-                        val cleanKey = key.lowercase().replace("-", "").trim()
+                        val cleanKey = key.lowercase().trim()
                         processed[cleanKey] = value
-                        // Özel eşleşme kuralları
+                        // DERİN EŞLEŞME (DeepSpaceOne, Defcon vb. için)
                         if (cleanKey.contains("deepspace")) processed["deepspaceone"] = value
                         if (cleanKey.contains("defcon")) processed["defcon"] = value
                     }
                     songMetadata = processed
-                } catch (e: Exception) {
-                    // Sessizce logla
-                }
-                delay(15000)
+                } catch (e: Exception) {}
+                delay(10000)
             }
         }
     }
@@ -87,7 +103,6 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
     fun fetchChannels() {
         viewModelScope.launch {
             isLoading = true
-            errorMessage = null
             try {
                 val response = apiService.getChannels()
                 channels = response.channels.map { channel ->
@@ -97,10 +112,8 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
                     channel.copy(id = channel.id.lowercase().trim(), imageUrl = cleanUrl)
                 }
                 updateSearch(searchQuery)
-            } catch (e: UnknownHostException) {
-                errorMessage = "İnternet bağlantısı yok."
             } catch (e: Exception) {
-                errorMessage = "Sunucuya bağlanılamadı."
+                errorMessage = "Bağlantı Hatası"
             } finally {
                 isLoading = false
             }
@@ -124,11 +137,32 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    var isNewVersionReady by mutableStateOf(false)
-    fun checkGitHubUpdates() {
-        viewModelScope.launch {
-            // İleride version.json okuma eklenecek
-            delay(1000)
+    // --- GITHUB OTONOM GÜNCELLEME MANTIĞI ---
+    var updateStatus by mutableStateOf("Güncel")
+    var updateUrl by mutableStateOf<String?>(null)
+
+    fun checkForUpdates() {
+        viewModelScope.launch(Dispatchers.IO) {
+            updateStatus = "Denetleniyor..."
+            try {
+                val jsonUrl = "https://raw.githubusercontent.com/arslanokyanus/OkeanossFM/master/version.json"
+                val content = URL(jsonUrl).readText()
+                val json = Json.parseToJsonElement(content).jsonObject
+                
+                val latestCode = json["latestVersionCode"]?.jsonPrimitive?.content?.toInt() ?: 0
+                val latestName = json["latestVersionName"]?.jsonPrimitive?.content ?: ""
+                val downloadUrl = json["updateUrl"]?.jsonPrimitive?.content
+                
+                // Mevcut version code (Şu anlık 1 kabul ediyoruz)
+                if (latestCode > 1) {
+                    updateStatus = "Yeni Sürüm: $latestName"
+                    updateUrl = downloadUrl
+                } else {
+                    updateStatus = "Uygulama Güncel"
+                }
+            } catch (e: Exception) {
+                updateStatus = "Hata oluştu"
+            }
         }
     }
 }

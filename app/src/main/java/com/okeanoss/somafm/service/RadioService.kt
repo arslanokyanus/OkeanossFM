@@ -2,14 +2,11 @@ package com.okeanoss.somafm.service
 
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
-import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 
-/**
- * Radyonun arka planda çalmasını sağlayan Media3 MediaSession servisi.
- */
 class RadioService : MediaSessionService() {
 
     private var player: ExoPlayer? = null
@@ -18,23 +15,20 @@ class RadioService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         
-        // 1. ExoPlayer'ı oluştur ve yapılandır
         player = ExoPlayer.Builder(this)
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
                     .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                     .build(),
-                true // Focus'u otomatik yönet
+                true
             )
             .build()
 
-        // 2. MediaSession oluştur (Bildirim ekranı kontrolleri için)
         mediaSession = MediaSession.Builder(this, player!!)
             .build()
     }
 
-    // Sistem veya Uygulama servise bağlandığında session'ı döndür
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
         return mediaSession
     }

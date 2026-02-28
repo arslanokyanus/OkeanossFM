@@ -61,7 +61,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         
         MobileAds.initialize(this) {}
-        SupportWorker.schedule(this) // Bildirimi burada bir kez planlıyoruz
+        SupportWorker.schedule(this)
 
         val sessionToken = SessionToken(this, ComponentName(this, RadioService::class.java))
         controllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
@@ -82,7 +82,6 @@ class MainActivity : ComponentActivity() {
             SomaFMTheme {
                 val navController = rememberNavController()
                 
-                // Bildirim Tıklaması Kontrolü
                 LaunchedEffect(intent) {
                     if (intent?.getStringExtra("navigate_to") == "about") {
                         navController.navigate("about")
@@ -91,7 +90,7 @@ class MainActivity : ComponentActivity() {
 
                 NavHost(navController = navController, startDestination = "home") {
                     composable("home") { SomaFMApp(viewModel, mediaController, currentMediaId, isPlayingState, navController) }
-                    composable("about") { AboutScreen(navController) }
+                    composable("about") { AboutScreen(viewModel, navController) }
                 }
             }
         }
@@ -113,29 +112,18 @@ fun SomaFMApp(viewModel: SomaFMViewModel, controller: MediaController?, currentM
             Column(modifier = Modifier.background(Color(0xFFE91E63))) {
                 CenterAlignedTopAppBar(
                     title = { Text("OkeanossFM", fontWeight = FontWeight.Bold) },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = Color.Transparent,
-                        titleContentColor = Color.White
-                    ),
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent, titleContentColor = Color.White),
                     actions = {
-                        IconButton(onClick = { navController.navigate("about") }) {
-                            Icon(Icons.Default.Info, contentDescription = "Hakkında", tint = Color.White)
-                        }
+                        IconButton(onClick = { navController.navigate("about") }) { Icon(Icons.Default.Info, contentDescription = "Hakkında", tint = Color.White) }
                     }
                 )
-                // Modern Arama Çubuğu
                 TextField(
                     value = viewModel.searchQuery,
                     onValueChange = { viewModel.updateSearch(it) },
                     modifier = Modifier.fillMaxWidth().padding(12.dp),
                     placeholder = { Text("Kanal ara...", color = Color.Gray) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    ),
+                    colors = TextFieldDefaults.colors(focusedContainerColor = Color.White, unfocusedContainerColor = Color.White, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent),
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true
                 )
@@ -156,7 +144,7 @@ fun SomaFMApp(viewModel: SomaFMViewModel, controller: MediaController?, currentM
             when {
                 viewModel.isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Color(0xFFE91E63))
                 viewModel.errorMessage != null -> ErrorContent(viewModel)
-                else -> ChannelList(viewModel.filteredChannels, viewModel.favoriteIds, currentMediaId, isPlaying, viewModel::toggleFavorite, controller)
+                else -> ChannelList(viewModel.filteredChannels, viewModel.favoriteIds, currentMediaId, isPlaying, viewModel::toggleFavorite, controller, viewModel)
             }
         }
     }
@@ -164,7 +152,7 @@ fun SomaFMApp(viewModel: SomaFMViewModel, controller: MediaController?, currentM
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutScreen(navController: NavController) {
+fun AboutScreen(viewModel: SomaFMViewModel, navController: NavController) {
     val context = LocalContext.current
     Scaffold(
         topBar = {
@@ -180,16 +168,31 @@ fun AboutScreen(navController: NavController) {
             Text(text = "Okyanus Arslan", fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Text(text = "Okeanoss - Network & Agency", fontSize = 14.sp, color = Color.Gray)
             
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             
+            // GÜNCELLEME KONTROL BÖLÜMÜ
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F1F1)), modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Uygulama Güncelleme", fontWeight = FontWeight.Bold)
+                    Text("Durum: ${viewModel.updateStatus}", fontSize = 13.sp, color = Color.DarkGray)
+                    Row(modifier = Modifier.padding(top = 8.dp)) {
+                        Button(onClick = { viewModel.checkForUpdates() }) { Text("Denetle") }
+                        if (viewModel.updateUrl != null) {
+                            Spacer(Modifier.width(8.dp))
+                            Button(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(viewModel.updateUrl))) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))) {
+                                Text("İndir")
+                            }
+                        }
+                    }
+                }
+            }
+
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Bana Destek Olun ❤️", fontWeight = FontWeight.Bold, color = Color(0xFFE91E63))
-                    Text("Günde 1 kez reklam izleyerek geliştirmelere katkıda bulunabilirsiniz.", textAlign = TextAlign.Center, fontSize = 12.sp, modifier = Modifier.padding(vertical = 8.dp))
+                    Text("Reklam izleyerek OkeanossFM'in gelişmesine katkıda bulunabilirsiniz.", textAlign = TextAlign.Center, fontSize = 12.sp, modifier = Modifier.padding(vertical = 8.dp))
                     Button(onClick = { /* Rewarded Ad */ }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE91E63))) {
-                        Icon(Icons.Default.PlayCircle, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Reklam İzle")
+                        Icon(Icons.Default.PlayCircle, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Reklam İzle")
                     }
                 }
             }
@@ -230,25 +233,29 @@ fun NowPlayingBar(channelName: String, songInfo: String, isPlaying: Boolean, con
 }
 
 @Composable
-fun ChannelList(channels: List<SomaChannel>, favoriteIds: Set<String>, currentMediaId: String?, isPlaying: Boolean, onToggleFav: (SomaChannel) -> Unit, controller: MediaController?) {
+fun ChannelList(channels: List<SomaChannel>, favoriteIds: Set<String>, currentMediaId: String?, isPlaying: Boolean, onToggleFav: (SomaChannel) -> Unit, controller: MediaController?, viewModel: SomaFMViewModel) {
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         items(channels, key = { it.id }) { channel -> 
             val isCurrent = currentMediaId == channel.id
-            ChannelItem(channel, favoriteIds.contains(channel.id), isCurrent, isPlaying && isCurrent, onToggleFav, controller) 
+            ChannelItem(channel, favoriteIds.contains(channel.id), isCurrent, isPlaying && isCurrent, onToggleFav, controller, viewModel) 
         }
     }
 }
 
 @Composable
-fun ChannelItem(channel: SomaChannel, isFavorite: Boolean, isCurrent: Boolean, isPlaying: Boolean, onToggleFav: (SomaChannel) -> Unit, controller: MediaController?) {
+fun ChannelItem(channel: SomaChannel, isFavorite: Boolean, isCurrent: Boolean, isPlaying: Boolean, onToggleFav: (SomaChannel) -> Unit, controller: MediaController?, viewModel: SomaFMViewModel) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = if (isCurrent) Color(0xFFFFEBEE) else Color(0xFFF8F8F8))) {
         Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            
+            // GIF DESTEKLİ GÖRSEL YÜKLEME
             AsyncImage(
                 model = channel.imageUrl,
                 contentDescription = null,
+                imageLoader = viewModel.imageLoader,
                 modifier = Modifier.size(60.dp).clip(CircleShape),
                 contentScale = ContentScale.Crop
             )
+
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = channel.title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = if (isCurrent) Color(0xFFE91E63) else Color.Black)
@@ -267,7 +274,7 @@ fun ChannelItem(channel: SomaChannel, isFavorite: Boolean, isCurrent: Boolean, i
                             .setMediaId(channel.id)
                             .setUri(streamUrl)
                             .setMediaMetadata(
-                                MediaMetadata.Builder().setTitle(channel.title).setArtist("Canlı Yayın").build()
+                                MediaMetadata.Builder().setTitle(channel.title).setArtist("OkeanossFM").build()
                             ).build()
                         controller?.setMediaItem(mediaItem)
                         controller?.prepare()
