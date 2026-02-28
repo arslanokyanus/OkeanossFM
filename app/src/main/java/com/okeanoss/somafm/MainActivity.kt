@@ -48,6 +48,7 @@ import com.google.common.util.concurrent.MoreExecutors
 import com.okeanoss.somafm.models.SomaChannel
 import com.okeanoss.somafm.service.RadioService
 import com.okeanoss.somafm.ui.viewmodel.SomaFMViewModel
+import com.okeanoss.somafm.worker.SupportWorker
 
 class MainActivity : ComponentActivity() {
     private val viewModel: SomaFMViewModel by viewModels()
@@ -58,7 +59,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
         MobileAds.initialize(this) {}
+        SupportWorker.schedule(this) // Bildirimi burada bir kez planlıyoruz
 
         val sessionToken = SessionToken(this, ComponentName(this, RadioService::class.java))
         controllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
@@ -79,29 +82,16 @@ class MainActivity : ComponentActivity() {
             SomaFMTheme {
                 val navController = rememberNavController()
                 
-                // DIŞARIDAN GELEN YÖNLENDİRME (BİLDİRİM TIKLAMASI)
+                // Bildirim Tıklaması Kontrolü
                 LaunchedEffect(intent) {
                     if (intent?.getStringExtra("navigate_to") == "about") {
                         navController.navigate("about")
                     }
                 }
 
-                // BİLDİRİM PANELİNDE ŞARKI İSMİNİ GÜNCELLE
-                LaunchedEffect(viewModel.songMetadata, currentMediaId) {
-                    currentMediaId?.let { id ->
-                        val song = viewModel.songMetadata[id.lowercase()] ?: "Canlı Yayın..."
-                        val station = viewModel.channels.find { it.id == id }?.title ?: "OkeanossFM"
-                        
-                        mediaController?.let { controller ->
-                            // Yayını kesmeden metadata güncelleme
-                            // Media3'te setPlaylistMetadata veya MediaItem güncelleme ile yapılır
-                        }
-                    }
-                }
-
                 NavHost(navController = navController, startDestination = "home") {
                     composable("home") { SomaFMApp(viewModel, mediaController, currentMediaId, isPlayingState, navController) }
-                    composable("about") { AboutScreen(viewModel, navController) }
+                    composable("about") { AboutScreen(navController) }
                 }
             }
         }
@@ -120,22 +110,34 @@ fun SomaFMApp(viewModel: SomaFMViewModel, controller: MediaController?, currentM
 
     Scaffold(
         topBar = {
-            Column {
+            Column(modifier = Modifier.background(Color(0xFFE91E63))) {
                 CenterAlignedTopAppBar(
                     title = { Text("OkeanossFM", fontWeight = FontWeight.Bold) },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color(0xFFE91E63), titleContentColor = Color.White),
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = Color.White
+                    ),
                     actions = {
-                        IconButton(onClick = { navController.navigate("about") }) { Icon(Icons.Default.Info, contentDescription = "Hakkında", tint = Color.White) }
+                        IconButton(onClick = { navController.navigate("about") }) {
+                            Icon(Icons.Default.Info, contentDescription = "Hakkında", tint = Color.White)
+                        }
                     }
                 )
+                // Modern Arama Çubuğu
                 TextField(
                     value = viewModel.searchQuery,
                     onValueChange = { viewModel.updateSearch(it) },
-                    modifier = Modifier.fillMaxWidth().padding(8.dp),
-                    placeholder = { Text("Kanal veya tür ara...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    colors = TextFieldDefaults.textFieldColors(containerColor = Color(0xFFF5F5F5), unfocusedIndicatorColor = Color.Transparent, focusedIndicatorColor = Color.Transparent),
-                    shape = RoundedCornerShape(12.dp)
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    placeholder = { Text("Kanal ara...", color = Color.Gray) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    singleLine = true
                 )
             }
         },
@@ -162,10 +164,8 @@ fun SomaFMApp(viewModel: SomaFMViewModel, controller: MediaController?, currentM
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutScreen(viewModel: SomaFMViewModel, navController: NavController) {
+fun AboutScreen(navController: NavController) {
     val context = LocalContext.current
-    LaunchedEffect(Unit) { viewModel.checkGitHubUpdates() }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -180,24 +180,12 @@ fun AboutScreen(viewModel: SomaFMViewModel, navController: NavController) {
             Text(text = "Okyanus Arslan", fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Text(text = "Okeanoss - Network & Agency", fontSize = 14.sp, color = Color.Gray)
             
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
             
-            if (viewModel.isNewVersionReady) {
-                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)), modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Update, contentDescription = null, tint = Color(0xFF2E7D32))
-                        Spacer(Modifier.width(12.dp))
-                        Text("Yeni Güncelleme Hazır!", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
-                        Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { /* Github APK Linkini Aç */ }) { Text("İNDİR") }
-                    }
-                }
-            }
-
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Bana Destek Olun ❤️", fontWeight = FontWeight.Bold, color = Color(0xFFE91E63))
-                    Text("Reklam izleyerek OkeanossFM'in gelişmesine katkıda bulunabilirsiniz.", textAlign = TextAlign.Center, fontSize = 12.sp, modifier = Modifier.padding(vertical = 8.dp))
+                    Text("Günde 1 kez reklam izleyerek geliştirmelere katkıda bulunabilirsiniz.", textAlign = TextAlign.Center, fontSize = 12.sp, modifier = Modifier.padding(vertical = 8.dp))
                     Button(onClick = { /* Rewarded Ad */ }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE91E63))) {
                         Icon(Icons.Default.PlayCircle, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
@@ -219,7 +207,7 @@ fun AboutScreen(viewModel: SomaFMViewModel, navController: NavController) {
             }
 
             Spacer(modifier = Modifier.weight(1f))
-            Text(text = "Versiyon: 1.0.0", fontSize = 12.sp, color = Color.Gray)
+            Text(text = "Versiyon: 1.0.0", fontSize = 12.sp, color = Color.Gray, textAlign = TextAlign.Center)
         }
     }
 }
@@ -244,7 +232,7 @@ fun NowPlayingBar(channelName: String, songInfo: String, isPlaying: Boolean, con
 @Composable
 fun ChannelList(channels: List<SomaChannel>, favoriteIds: Set<String>, currentMediaId: String?, isPlaying: Boolean, onToggleFav: (SomaChannel) -> Unit, controller: MediaController?) {
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(channels) { channel -> 
+        items(channels, key = { it.id }) { channel -> 
             val isCurrent = currentMediaId == channel.id
             ChannelItem(channel, favoriteIds.contains(channel.id), isCurrent, isPlaying && isCurrent, onToggleFav, controller) 
         }
@@ -253,19 +241,18 @@ fun ChannelList(channels: List<SomaChannel>, favoriteIds: Set<String>, currentMe
 
 @Composable
 fun ChannelItem(channel: SomaChannel, isFavorite: Boolean, isCurrent: Boolean, isPlaying: Boolean, onToggleFav: (SomaChannel) -> Unit, controller: MediaController?) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = if (isCurrent) Color(0xFFFFEBEE) else Color(0xFFF5F5F5))) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = if (isCurrent) Color(0xFFFFEBEE) else Color(0xFFF8F8F8))) {
         Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             AsyncImage(
                 model = channel.imageUrl,
                 contentDescription = null,
                 modifier = Modifier.size(60.dp).clip(CircleShape),
-                contentScale = ContentScale.Crop,
-                error = null
+                contentScale = ContentScale.Crop
             )
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = channel.title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = if (isCurrent) Color(0xFFE91E63) else Color.Black)
-                Text(text = channel.description, fontSize = 14.sp, color = Color.Gray, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(text = channel.title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = if (isCurrent) Color(0xFFE91E63) else Color.Black)
+                Text(text = channel.description, fontSize = 13.sp, color = Color.Gray, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             IconButton(onClick = { onToggleFav(channel) }) {
                 Icon(if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, contentDescription = "Favori", tint = if (isFavorite) Color.Red else Color.Gray)
@@ -280,7 +267,7 @@ fun ChannelItem(channel: SomaChannel, isFavorite: Boolean, isCurrent: Boolean, i
                             .setMediaId(channel.id)
                             .setUri(streamUrl)
                             .setMediaMetadata(
-                                MediaMetadata.Builder().setTitle(channel.title).setArtist("Yükleniyor...").build()
+                                MediaMetadata.Builder().setTitle(channel.title).setArtist("Canlı Yayın").build()
                             ).build()
                         controller?.setMediaItem(mediaItem)
                         controller?.prepare()
@@ -288,7 +275,7 @@ fun ChannelItem(channel: SomaChannel, isFavorite: Boolean, isCurrent: Boolean, i
                     }
                 }
             ) {
-                Icon(if (isPlaying) Icons.Default.PauseCircleFilled else Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFFE91E63))
+                Icon(if (isPlaying) Icons.Default.PauseCircleFilled else Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFFE91E63), modifier = Modifier.size(32.dp))
             }
         }
     }
@@ -302,7 +289,7 @@ fun AdMobBanner() {
 @Composable
 fun ErrorContent(viewModel: SomaFMViewModel) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = viewModel.errorMessage!!, color = Color.Red, textAlign = TextAlign.Center)
+        Text(text = viewModel.errorMessage ?: "Bir hata oluştu", color = Color.Red, textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = { viewModel.fetchChannels() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE91E63))) { Text("Tekrar Dene", color = Color.White) }
     }

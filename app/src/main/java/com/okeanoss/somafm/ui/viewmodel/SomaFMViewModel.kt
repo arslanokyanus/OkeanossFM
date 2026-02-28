@@ -19,6 +19,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.net.UnknownHostException
 
 class SomaFMViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -37,22 +38,24 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
     }
     private val favoriteDao by lazy { db.favoriteDao() }
 
-    private val retrofit = Retrofit.Builder()
-        .baseUrl(SomaFMService.BASE_URL)
-        .addConverterFactory(GsonConverterFactory.create())
-        .build()
-    private val apiService = retrofit.create(SomaFMService::class.java)
+    private val apiService by lazy {
+        Retrofit.Builder()
+            .baseUrl(SomaFMService.BASE_URL)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(SomaFMService::class.java)
+    }
 
     init {
         loadFavorites()
         startMetadataPolling()
-        SupportWorker.schedule(application) // Bildirimi planla
+        // Bildirim planlamasını buraya değil, bir defaya mahsus MainActivity'ye taşıyacağız.
     }
 
     private fun loadFavorites() {
         viewModelScope.launch {
             favoriteDao.getAllFavorites()
-                .catch { e -> errorMessage = "Veritabanı Hatası" }
+                .catch { e -> errorMessage = "Veritabanı Hatası: ${e.message}" }
                 .collect { favorites ->
                     favoriteIds = favorites.map { it.id }.toSet()
                 }
@@ -68,13 +71,15 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
                     rawMeta.forEach { (key, value) ->
                         val cleanKey = key.lowercase().replace("-", "").trim()
                         processed[cleanKey] = value
-                        // Özel kural: SomaFM'in değişken ID yapısı için
+                        // Özel eşleşme kuralları
                         if (cleanKey.contains("deepspace")) processed["deepspaceone"] = value
                         if (cleanKey.contains("defcon")) processed["defcon"] = value
                     }
                     songMetadata = processed
-                } catch (e: Exception) {}
-                delay(10000)
+                } catch (e: Exception) {
+                    // Sessizce logla
+                }
+                delay(15000)
             }
         }
     }
@@ -82,19 +87,20 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
     fun fetchChannels() {
         viewModelScope.launch {
             isLoading = true
+            errorMessage = null
             try {
                 val response = apiService.getChannels()
                 channels = response.channels.map { channel ->
-                    // GÖRSEL TAMİRİ: SSL ve URL sorunlarını çözmek için
-                    val cleanId = channel.id.lowercase().trim()
                     val cleanUrl = channel.imageUrl
                         .replace("api.somafm.com", "somafm.com")
                         .replace("http://", "https://")
-                    channel.copy(id = cleanId, imageUrl = cleanUrl)
+                    channel.copy(id = channel.id.lowercase().trim(), imageUrl = cleanUrl)
                 }
                 updateSearch(searchQuery)
+            } catch (e: UnknownHostException) {
+                errorMessage = "İnternet bağlantısı yok."
             } catch (e: Exception) {
-                errorMessage = "Bağlantı Hatası"
+                errorMessage = "Sunucuya bağlanılamadı."
             } finally {
                 isLoading = false
             }
@@ -103,13 +109,14 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
 
     fun updateSearch(query: String) {
         searchQuery = query
-        filteredChannels = if (query.isEmpty()) channels else channels.filter { it.title.contains(query, ignoreCase = true) || it.description.contains(query, ignoreCase = true) }
+        filteredChannels = if (query.isEmpty()) channels else channels.filter {
+            it.title.contains(query, ignoreCase = true) || it.description.contains(query, ignoreCase = true)
+        }
     }
 
     fun toggleFavorite(channel: SomaChannel) {
         viewModelScope.launch(Dispatchers.IO) {
-            val isFav = favoriteIds.contains(channel.id)
-            if (isFav) {
+            if (favoriteIds.contains(channel.id)) {
                 favoriteDao.deleteFavorite(FavoriteChannel(channel.id, channel.title, channel.description, channel.imageUrl))
             } else {
                 favoriteDao.insertFavorite(FavoriteChannel(channel.id, channel.title, channel.description, channel.imageUrl))
@@ -117,13 +124,11 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // GITHUB OTONOM GÜNCELLEME
     var isNewVersionReady by mutableStateOf(false)
     fun checkGitHubUpdates() {
         viewModelScope.launch {
-            // TODO: Fetch version.json from GitHub
-            delay(1500)
-            // isNewVersionReady = true 
+            // İleride version.json okuma eklenecek
+            delay(1000)
         }
     }
 }
