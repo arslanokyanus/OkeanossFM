@@ -63,7 +63,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
         MobileAds.initialize(this) {}
         loadRewardedAd()
         SupportWorker.schedule(this)
@@ -86,13 +85,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             SomaFMTheme {
                 val navController = rememberNavController()
-                
                 LaunchedEffect(intent) {
-                    if (intent?.getStringExtra("navigate_to") == "about") {
-                        navController.navigate("about")
-                    }
+                    if (intent?.getStringExtra("navigate_to") == "about") navController.navigate("about")
                 }
-
                 NavHost(navController = navController, startDestination = "home") {
                     composable("home") { SomaFMApp(viewModel, mediaController, currentMediaId, isPlayingState, navController) }
                     composable("about") { AboutScreen(viewModel, navController, ::showRewardedAd) }
@@ -122,7 +117,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun SomaFMApp(viewModel: SomaFMViewModel, controller: MediaController?, currentMediaId: String?, isPlaying: Boolean, navController: NavController) {
     LaunchedEffect(Unit) { if (viewModel.channels.isEmpty()) viewModel.fetchChannels() }
-
     Scaffold(
         topBar = {
             Column(modifier = Modifier.background(Color(0xFFE91E63))) {
@@ -182,7 +176,7 @@ fun AboutScreen(viewModel: SomaFMViewModel, navController: NavController, onShow
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center // ORTAYA ALDIK
+            verticalArrangement = Arrangement.Center // TAM ORTADA
         ) {
             Icon(Icons.Default.DeveloperMode, contentDescription = null, modifier = Modifier.size(80.dp), tint = Color(0xFFE91E63))
             Spacer(modifier = Modifier.height(12.dp))
@@ -191,14 +185,13 @@ fun AboutScreen(viewModel: SomaFMViewModel, navController: NavController, onShow
             
             Spacer(modifier = Modifier.height(32.dp))
             
-            // GÜNCELLEME KARTI (Tam Ortada)
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                shape = RoundedCornerShape(24.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
-                Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Versiyon Denetleyici", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Spacer(Modifier.height(8.dp))
                     Text(text = viewModel.updateStatus, color = Color(0xFFE91E63), fontWeight = FontWeight.Medium)
@@ -215,26 +208,15 @@ fun AboutScreen(viewModel: SomaFMViewModel, navController: NavController, onShow
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // DESTEK BUTONU
             OutlinedButton(onClick = onShowAd, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                Icon(Icons.Default.Favorite, contentDescription = null, tint = Color.Red)
-                Spacer(Modifier.width(8.dp))
-                Text("Reklam İzle ve Destek Ol")
+                Icon(Icons.Default.Favorite, contentDescription = null, tint = Color.Red); Spacer(Modifier.width(8.dp)); Text("Reklam İzle ve Destek Ol")
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // İLETİŞİM GRUBU
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://okeanoss.com"))) }, modifier = Modifier.weight(1f)) {
-                    Text("Web Sitesi", fontSize = 12.sp)
-                }
-                OutlinedButton(onClick = { 
-                    val intent = Intent(Intent.ACTION_SENDTO).apply { data = Uri.parse("mailto:hello@okeanoss.com") }
-                    context.startActivity(intent)
-                }, modifier = Modifier.weight(1f)) {
-                    Text("E-Posta", fontSize = 12.sp)
-                }
+                OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://okeanoss.com"))) }, modifier = Modifier.weight(1f)) { Text("Web Sitesi", fontSize = 12.sp) }
+                OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_SENDTO).apply { data = Uri.parse("mailto:hello@okeanoss.com") }) }, modifier = Modifier.weight(1f)) { Text("E-Posta", fontSize = 12.sp) }
             }
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -280,14 +262,11 @@ fun ChannelItem(channel: SomaChannel, isFavorite: Boolean, isCurrent: Boolean, i
                 Text(text = channel.title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = if (isCurrent) Color(0xFFE91E63) else Color.Black)
                 Text(text = channel.description, fontSize = 13.sp, color = Color.Gray, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            IconButton(onClick = { onToggleFav(channel) }) {
-                Icon(if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, contentDescription = "Favori", tint = if (isFavorite) Color.Red else Color.Gray)
-            }
+            IconButton(onClick = { onToggleFav(channel) }) { Icon(if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, contentDescription = "Favori", tint = if (isFavorite) Color.Red else Color.Gray) }
             IconButton(
                 onClick = {
-                    if (isCurrent && isPlaying) {
-                        controller?.pause()
-                    } else {
+                    if (isCurrent && isPlaying) controller?.pause()
+                    else {
                         val streamUrl = "https://ice1.somafm.com/${channel.id}-128-aac"
                         val mediaItem = MediaItem.Builder().setMediaId(channel.id).setUri(streamUrl).setMediaMetadata(MediaMetadata.Builder().setTitle(channel.title).setArtist("OkeanossFM").build()).build()
                         controller?.setMediaItem(mediaItem)
@@ -295,9 +274,7 @@ fun ChannelItem(channel: SomaChannel, isFavorite: Boolean, isCurrent: Boolean, i
                         controller?.play()
                     }
                 }
-            ) {
-                Icon(if (isPlaying) Icons.Default.PauseCircleFilled else Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFFE91E63), modifier = Modifier.size(32.dp))
-            }
+            ) { Icon(if (isPlaying) Icons.Default.PauseCircleFilled else Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFFE91E63), modifier = Modifier.size(32.dp)) }
         }
     }
 }

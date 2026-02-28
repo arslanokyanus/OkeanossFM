@@ -67,18 +67,13 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
                 try {
                     val rawMeta = apiService.getSongs()
                     val processed = mutableMapOf<String, String>()
-                    
-                    // GÜÇLÜ EŞLEŞME ALGORİTMASI
                     channels.forEach { channel ->
                         val targetId = channel.id.lowercase().replace(Regex("[^a-z0-9]"), "")
                         val songInfo = rawMeta.entries.find { 
                             val key = it.key.lowercase().replace(Regex("[^a-z0-9]"), "")
                             key == targetId || key.contains(targetId) || targetId.contains(key)
                         }?.value
-                        
-                        if (songInfo != null) {
-                            processed[channel.id] = songInfo
-                        }
+                        if (songInfo != null) processed[channel.id] = songInfo
                     }
                     songMetadata = processed
                 } catch (e: Exception) {}
@@ -117,7 +112,7 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    var updateStatus by mutableStateOf("Sistem Güncel")
+    var updateStatus by mutableStateOf("Uygulama Güncel ✅")
     var updateUrl by mutableStateOf<String?>(null)
 
     fun checkForUpdates() {
