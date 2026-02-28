@@ -36,16 +36,13 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
     var errorMessage by mutableStateOf<String?>(null)
     var searchQuery by mutableStateOf("")
     var favoriteIds by mutableStateOf<Set<String>>(emptySet())
-    
-    // CANLI ŞARKI BİLGİLERİ
     var songMetadata by mutableStateOf<Map<String, String>>(emptyMap())
 
     val imageLoader = ImageLoader.Builder(application)
         .components {
             if (Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory())
             else add(GifDecoder.Factory())
-        }
-        .build()
+        }.build()
 
     private val db by lazy { Room.databaseBuilder(application, SomaDatabase::class.java, "soma_db").fallbackToDestructiveMigration().build() }
     private val favoriteDao by lazy { db.favoriteDao() }
@@ -71,17 +68,16 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
                     val rawMeta = apiService.getSongs()
                     val processed = mutableMapOf<String, String>()
                     
-                    // Sadece tam eşleşme değil, akıllı eşleşme yapıyoruz
+                    // GÜÇLÜ EŞLEŞME ALGORİTMASI
                     channels.forEach { channel ->
-                        val channelId = channel.id.lowercase().trim()
-                        // songs.json içindeki anahtarlardan herhangi biri kanal ID'sini içeriyor mu?
+                        val targetId = channel.id.lowercase().replace(Regex("[^a-z0-9]"), "")
                         val songInfo = rawMeta.entries.find { 
-                            val key = it.key.lowercase().trim()
-                            key == channelId || key.contains(channelId) || channelId.contains(key)
+                            val key = it.key.lowercase().replace(Regex("[^a-z0-9]"), "")
+                            key == targetId || key.contains(targetId) || targetId.contains(key)
                         }?.value
                         
                         if (songInfo != null) {
-                            processed[channelId] = songInfo
+                            processed[channel.id] = songInfo
                         }
                     }
                     songMetadata = processed
@@ -98,7 +94,7 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
                 val response = apiService.getChannels()
                 channels = response.channels.map { channel ->
                     val cleanUrl = channel.imageUrl.replace("http://", "https://")
-                    channel.copy(id = channel.id.lowercase().trim(), imageUrl = cleanUrl)
+                    channel.copy(imageUrl = cleanUrl)
                 }
                 updateSearch(searchQuery)
             } catch (e: Exception) {
@@ -121,7 +117,7 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    var updateStatus by mutableStateOf("Güncel")
+    var updateStatus by mutableStateOf("Sistem Güncel")
     var updateUrl by mutableStateOf<String?>(null)
 
     fun checkForUpdates() {
@@ -132,9 +128,9 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
                 val json = Json.parseToJsonElement(content).jsonObject
                 val latestCode = json["latestVersionCode"]?.jsonPrimitive?.content?.toInt() ?: 0
                 if (latestCode > 1) {
-                    updateStatus = "Yeni Sürüm Mevcut"
+                    updateStatus = "Yeni Sürüm Mevcut! 🚀"
                     updateUrl = json["updateUrl"]?.jsonPrimitive?.content
-                } else { updateStatus = "Uygulama Güncel" }
+                } else { updateStatus = "Uygulama Güncel ✅" }
             } catch (e: Exception) { updateStatus = "Hata oluştu" }
         }
     }

@@ -75,7 +75,7 @@ class MainActivity : ComponentActivity() {
             mediaController = controller
             controller?.addListener(object : Player.Listener {
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                    currentMediaId = mediaItem?.mediaId?.lowercase()?.trim()
+                    currentMediaId = mediaItem?.mediaId
                 }
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     isPlayingState = isPlaying
@@ -102,17 +102,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun loadRewardedAd() {
-        val adRequest = AdRequest.Builder().build()
-        RewardedAd.load(this, "ca-app-pub-3940256099942544/5224354917", adRequest, object : RewardedAdLoadCallback() {
+        RewardedAd.load(this, "ca-app-pub-3940256099942544/5224354917", AdRequest.Builder().build(), object : RewardedAdLoadCallback() {
             override fun onAdFailedToLoad(adError: LoadAdError) { rewardedAd = null }
             override fun onAdLoaded(ad: RewardedAd) { rewardedAd = ad }
         })
     }
 
     private fun showRewardedAd() {
-        rewardedAd?.let { ad ->
-            ad.show(this) { loadRewardedAd() }
-        } ?: loadRewardedAd()
+        rewardedAd?.let { ad -> ad.show(this) { loadRewardedAd() } } ?: loadRewardedAd()
     }
 
     override fun onDestroy() {
@@ -139,13 +136,14 @@ fun SomaFMApp(viewModel: SomaFMViewModel, controller: MediaController?, currentM
                 TextField(
                     value = viewModel.searchQuery,
                     onValueChange = { viewModel.updateSearch(it) },
-                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                     placeholder = { Text("Kanal ara...", color = Color.Gray) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
                     colors = TextFieldDefaults.colors(focusedContainerColor = Color.White, unfocusedContainerColor = Color.White, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent),
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true
                 )
+                Spacer(Modifier.height(8.dp))
             }
         },
         bottomBar = {
@@ -181,52 +179,66 @@ fun AboutScreen(viewModel: SomaFMViewModel, navController: NavController, onShow
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center // ORTAYA ALDIK
+        ) {
             Icon(Icons.Default.DeveloperMode, contentDescription = null, modifier = Modifier.size(80.dp), tint = Color(0xFFE91E63))
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(text = "Okyanus Arslan", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(text = "Okyanus Arslan", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(text = "Okeanoss - Network & Agency", fontSize = 14.sp, color = Color.Gray)
             
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
             
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F1F1)), modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Uygulama Güncelleme", fontWeight = FontWeight.Bold)
-                    Text("Durum: ${viewModel.updateStatus}", fontSize = 13.sp, color = Color.DarkGray)
-                    Row(modifier = Modifier.padding(top = 8.dp)) {
-                        Button(onClick = { viewModel.checkForUpdates() }) { Text("Denetle") }
+            // GÜNCELLEME KARTI (Tam Ortada)
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Versiyon Denetleyici", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text(text = viewModel.updateStatus, color = Color(0xFFE91E63), fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(16.dp))
+                    Row {
+                        Button(onClick = { viewModel.checkForUpdates() }) { Text("Şimdi Denetle") }
                         if (viewModel.updateUrl != null) {
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(12.dp))
                             Button(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(viewModel.updateUrl))) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))) { Text("İndir") }
                         }
                     }
                 }
             }
 
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Bana Destek Olun ❤️", fontWeight = FontWeight.Bold, color = Color(0xFFE91E63))
-                    Text("Reklam izleyerek OkeanossFM'in gelişmesine katkıda bulunabilirsiniz.", textAlign = TextAlign.Center, fontSize = 12.sp, modifier = Modifier.padding(vertical = 8.dp))
-                    Button(onClick = onShowAd, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE91E63))) {
-                        Icon(Icons.Default.PlayCircle, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Reklam İzle")
-                    }
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // DESTEK BUTONU
+            OutlinedButton(onClick = onShowAd, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                Icon(Icons.Default.Favorite, contentDescription = null, tint = Color.Red)
+                Spacer(Modifier.width(8.dp))
+                Text("Reklam İzle ve Destek Ol")
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // İLETİŞİM GRUBU
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://okeanoss.com"))) }, modifier = Modifier.weight(1f)) {
+                    Text("Web Sitesi", fontSize = 12.sp)
+                }
+                OutlinedButton(onClick = { 
+                    val intent = Intent(Intent.ACTION_SENDTO).apply { data = Uri.parse("mailto:hello@okeanoss.com") }
+                    context.startActivity(intent)
+                }, modifier = Modifier.weight(1f)) {
+                    Text("E-Posta", fontSize = 12.sp)
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-            OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://okeanoss.com"))) }, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Default.Language, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Okeanoss.com")
-            }
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(onClick = { 
-                val intent = Intent(Intent.ACTION_SENDTO).apply { data = Uri.parse("mailto:hello@okeanoss.com"); putExtra(Intent.EXTRA_SUBJECT, "OkeanossFM Geri Bildirim") }
-                context.startActivity(intent)
-            }, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Default.Email, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("hello@okeanoss.com")
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-            Text(text = "Versiyon: 1.0.0", fontSize = 12.sp, color = Color.Gray, textAlign = TextAlign.Center)
+            Spacer(modifier = Modifier.height(32.dp))
+            Text(text = "Versiyon: 1.0.0", fontSize = 12.sp, color = Color.LightGray)
         }
     }
 }
