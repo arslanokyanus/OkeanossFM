@@ -1,6 +1,6 @@
 {
-  "latestVersionCode": 1,
-  "latestVersionName": "1.0.0",
-  "updateUrl": "https://github.com/okeanoss/OkeanossFM/releases/latest",
-  "releaseNotes": "İlk kararlı sürüm yayınlandı! OkeanossFM hayırlı olsun."
+  "latestVersionCode": 2,
+  "latestVersionName": "2.0.0",
+  "updateUrl": "https://github.com/arslanokyanus/OkeanossFM/raw/master/app-debug.apk",
+  "releaseNotes": "Android 16 Desteği, Premium Dark Tema ve Reklamsız Deneyim!"
 }

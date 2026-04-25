@@ -35,7 +35,7 @@ class RadioService : MediaSessionService() {
 
     override fun onDestroy() {
         mediaSession?.run {
-            player?.release()
+            player.release()
             release()
             mediaSession = null
         }

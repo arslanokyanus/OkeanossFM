@@ -35,7 +35,7 @@ interface FavoriteDao {
 /**
  * Ana Room Veritabanı sınıfı.
  */
-@Database(entities = [FavoriteChannel::class], version = 1)
+@Database(entities = [FavoriteChannel::class], version = 1, exportSchema = false)
 abstract class SomaDatabase : RoomDatabase() {
     abstract fun favoriteDao(): FavoriteDao
 }
