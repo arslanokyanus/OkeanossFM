@@ -1,6 +1,6 @@
 {
-  "latestVersionCode": 2,
+  "latestVersionCode": "1.0.1",
   "latestVersionName": "1.0.1",
-  "updateUrl": "https://github.com/arslanokyanus/OkeanossFM/raw/master/app-debug.apk",
+  "updateUrl": "https://github.com/arslanokyanus/OkeanossFM/releases/download/v1.0.1/app-debug.apk",
   "releaseNotes": "Android 16 Desteği, Premium Dark Tema ve Reklamsız Deneyim!"
 }
