@@ -119,14 +119,33 @@ class SomaFMViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) {
             updateStatus = "Denetleniyor..."
             try {
+                val context = getApplication<Application>()
+                val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    context.packageManager.getPackageInfo(context.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+                } else {
+                    @Suppress("DEPRECATION")
+                    context.packageManager.getPackageInfo(context.packageName, 0)
+                }
+                val currentVersionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    packageInfo.longVersionCode.toInt()
+                } else {
+                    @Suppress("DEPRECATION")
+                    packageInfo.versionCode
+                }
+
                 val content = URL("https://raw.githubusercontent.com/arslanokyanus/OkeanossFM/master/version.json").readText()
                 val json = Json.parseToJsonElement(content).jsonObject
                 val latestCode = json["latestVersionCode"]?.jsonPrimitive?.content?.toInt() ?: 0
-                if (latestCode > 1) {
+                
+                if (latestCode > currentVersionCode) {
                     updateStatus = "Yeni Sürüm Mevcut! 🚀"
                     updateUrl = json["updateUrl"]?.jsonPrimitive?.content
-                } else { updateStatus = "Uygulama Güncel ✅" }
-            } catch (e: Exception) { updateStatus = "Hata oluştu" }
+                } else {
+                    updateStatus = "Uygulama Güncel ✅"
+                }
+            } catch (e: Exception) {
+                updateStatus = "Hata oluştu"
+            }
         }
     }
 }
