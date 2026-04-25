@@ -196,7 +196,7 @@ fun AboutScreen(viewModel: SomaFMViewModel, navController: NavController) {
 
             Spacer(modifier = Modifier.height(32.dp))
             Text(text = "SomaFM altyapısı ile güçlendirilmiştir.", fontSize = 10.sp, color = Color.LightGray)
-            Text(text = "Versiyon: 2.0.0 (Android 16)", fontSize = 12.sp, color = Color.Gray)
+            Text(text = "Versiyon: 1.0.1 (Android 16)", fontSize = 12.sp, color = Color.Gray)
         }
     }
 }
